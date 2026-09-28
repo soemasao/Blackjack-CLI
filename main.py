@@ -48,6 +48,54 @@ class Hand:
             return f"[❓] " + " ".join(str(card) for card in self.cards[1:])
         return " ".join(str(card) for card in self.cards)
 
+# Fungsi untuk memainkan giliran satu Hand (Tangan)
+def play_hand(hand, deck, bet, chips, hand_label=""):
+    player_busted = False
+    current_bet = bet
+
+    while True:
+        label_str = f" ({hand_label})" if hand_label else ""
+        print(f"\nKartu Kamu{label_str} : {hand.display()}  (Total: {hand.get_value()})")
+
+        if hand.get_value() == 21:
+            print(f"BLACKJACK pada {hand_label if hand_label else 'tangan kamu'}!")
+            break
+        elif hand.get_value() > 21:
+            print(f"BUST pada {hand_label if hand_label else 'tangan kamu'}!")
+            player_busted = True
+            break
+
+        can_double = (len(hand.cards) == 2) and (chips >= current_bet)
+
+        if can_double:
+            prompt = "Pilih aksi ([1] Hit / [2] Stand / [3] Double Down): "
+        else:
+            prompt = "Pilih aksi ([1] Hit / [2] Stand): "
+
+        choice = input(prompt).strip()
+
+        if choice == '1':
+            hand.add_card(deck.deal_card())
+            print("-> Kamu memilih HIT!")
+        elif choice == '2':
+            print("-> Kamu memilih STAND.")
+            break
+        elif choice == '3' and can_double:
+            chips -= current_bet
+            current_bet *= 2
+            print(f"-> Kamu memilih DOUBLE DOWN! Taruhan naik menjadi ${current_bet}.")
+            hand.add_card(deck.deal_card())
+            print(f"Kartu Kamu{label_str} : {hand.display()}  (Total: {hand.get_value()})")
+            
+            if hand.get_value() > 21:
+                print(f"BUST pada {hand_label if hand_label else 'tangan kamu'}!")
+                player_busted = True
+            break
+        else:
+            print("Pilihan tidak valid.")
+
+    return hand, current_bet, chips, player_busted
+
 def play_round(chips):
     print("\n" + "=" * 40)
     print(f" Total Chip Kamu: ${chips}")
@@ -63,6 +111,8 @@ def play_round(chips):
         except ValueError:
             print("Masukkan angka yang valid!")
 
+    chips -= bet  # Kurangi taruhan awal dari saldo chip
+
     deck = Deck()
     player_hand = Hand()
     dealer_hand = Hand()
@@ -76,19 +126,17 @@ def play_round(chips):
 
     # --- FITUR INSURANCE ---
     insurance_bet = 0
-    # Kartu terbuka dealer adalah kartu kedua di list dealer_hand.cards (karena kartu pertama disembunyikan)
     dealer_upcard = dealer_hand.cards[1]
     
-    if dealer_upcard.rank == 'A':
+    if dealer_upcard.rank == 'A' and chips >= (bet / 2):
         max_insurance = bet / 2
-        if chips - bet >= max_insurance:
-            print("\n⚠️ Dealer menunjukkan kartu ACE!")
-            take_insurance = input(f"Beli Insurance senilai ${int(max_insurance)}? (y/n): ").strip().lower()
-            if take_insurance == 'y':
-                insurance_bet = max_insurance
-                print(f"-> Insurance dipasang sebesar ${int(insurance_bet)}.")
+        print("\n⚠️ Dealer menunjukkan kartu ACE!")
+        take_insurance = input(f"Beli Insurance senilai ${int(max_insurance)}? (y/n): ").strip().lower()
+        if take_insurance == 'y':
+            insurance_bet = max_insurance
+            chips -= insurance_bet
+            print(f"-> Insurance dipasang sebesar ${int(insurance_bet)}.")
 
-    # Cek apakah Dealer Blackjack saat kartu tertutup dibuka
     dealer_has_blackjack = (dealer_hand.get_value() == 21)
 
     if dealer_upcard.rank == 'A' and dealer_has_blackjack:
@@ -98,97 +146,94 @@ def play_round(chips):
         print("=" * 40)
 
         if insurance_bet > 0:
-            payout = insurance_bet * 2
-            print(f"✅ Insurance KAMU MENANG! Kamu dibayar ${int(payout)}.")
-            chips += payout  # Menang insurance 2:1
+            payout = insurance_bet * 3  # Kembalikan taruhan insurance + bayaran 2:1
+            print(f"✅ Insurance KAMU MENANG! Kamu dibayar ${int(insurance_bet * 2)}.")
+            chips += payout
         
         if player_hand.get_value() == 21:
             print("Pemain juga Blackjack! Taruhan utama SERI (Push).")
+            chips += bet
         else:
             print(f"❌ Taruhan utama kalah. Kamu kehilangan ${bet}.")
-            chips -= bet
 
         return int(chips)
     
     elif insurance_bet > 0:
         print("-> Dealer TIDAK Blackjack. Uang Insurance hangus.")
-        chips -= insurance_bet
 
-    # --- GILIRAN PLAYER ---
-    player_busted = False
-    
-    while True:
-        if player_hand.get_value() == 21:
-            print("\nBLACKJACK!")
-            break
-        elif player_hand.get_value() > 21:
-            print("\nBUST! Total kartu kamu melebihi 21.")
-            player_busted = True
-            break
+    # List untuk menampung semua tangan pemain
+    player_hands = []  # Elemen: tuple (Hand, bet_amount, is_busted, label)
 
-        can_double = (len(player_hand.cards) == 2) and (chips >= bet * 2)
+    # --- FITUR SPLIT ---
+    can_split = (player_hand.cards[0].get_value() == player_hand.cards[1].get_value()) and (chips >= bet)
 
-        if can_double:
-            prompt = "\nPilih aksi ([1] Hit / [2] Stand / [3] Double Down): "
-        else:
-            prompt = "\nPilih aksi ([1] Hit / [2] Stand): "
+    if can_split:
+        do_split = input("\nKartu kamu bernilai sama! Lakukan SPLIT? (y/n): ").strip().lower()
+        if do_split == 'y':
+            chips -= bet  # Kurangi chip untuk tangan kedua
+            print(f"-> Kamu memilih SPLIT! Menambah taruhan ${bet} untuk tangan kedua.")
 
-        choice = input(prompt).strip()
+            # Buat 2 Hand terpisah
+            hand1 = Hand()
+            hand1.add_card(player_hand.cards[0])
+            hand1.add_card(deck.deal_card())
 
-        if choice == '1':
-            player_hand.add_card(deck.deal_card())
-            print("-> Kamu memilih HIT!")
-            print(f"Kartu Kamu   : {player_hand.display()}  (Total: {player_hand.get_value()})")
-        elif choice == '2':
-            print("-> Kamu memilih STAND.")
-            break
-        elif choice == '3' and can_double:
-            bet *= 2
-            print(f"-> Kamu memilih DOUBLE DOWN! Taruhan naik menjadi ${bet}.")
-            player_hand.add_card(deck.deal_card())
-            print(f"Kartu Kamu   : {player_hand.display()}  (Total: {player_hand.get_value()})")
-            
-            if player_hand.get_value() > 21:
-                print("\nBUST! Total kartu kamu melebihi 21.")
-                player_busted = True
-            break
-        else:
-            print("Pilihan tidak valid.")
+            hand2 = Hand()
+            hand2.add_card(player_hand.cards[1])
+            hand2.add_card(deck.deal_card())
 
-    if player_busted:
-        print(f"\nKAMU KALAH! Kamu kehilangan ${bet}.")
-        return int(chips - bet)
+            # Mainkan Tangan 1
+            print("\n--- Memainkan Tangan 1 ---")
+            hand1, bet1, chips, bust1 = play_hand(hand1, deck, bet, chips, "Tangan 1")
+            player_hands.append((hand1, bet1, bust1, "Tangan 1"))
+
+            # Mainkan Tangan 2
+            print("\n--- Memainkan Tangan 2 ---")
+            hand2, bet2, chips, bust2 = play_hand(hand2, deck, bet, chips, "Tangan 2")
+            player_hands.append((hand2, bet2, bust2, "Tangan 2"))
+
+    # Jika tidak Melakukan Split
+    if not player_hands:
+        hand, final_bet, chips, is_bust = play_hand(player_hand, deck, bet, chips)
+        player_hands.append((hand, final_bet, is_bust, "Utama"))
 
     # --- GILIRAN DEALER ---
-    print("\n" + "-" * 40)
-    print("Giliran Dealer...")
-    print(f"Kartu Dealer : {dealer_hand.display()}  (Total: {dealer_hand.get_value()})")
+    all_busted = all(busted for _, _, busted, _ in player_hands)
 
-    while dealer_hand.get_value() < 17:
-        print("Dealer memilih HIT...")
-        dealer_hand.add_card(deck.deal_card())
+    if not all_busted:
+        print("\n" + "-" * 40)
+        print("Giliran Dealer...")
         print(f"Kartu Dealer : {dealer_hand.display()}  (Total: {dealer_hand.get_value()})")
 
+        while dealer_hand.get_value() < 17:
+            print("Dealer memilih HIT...")
+            dealer_hand.add_card(deck.deal_card())
+            print(f"Kartu Dealer : {dealer_hand.display()}  (Total: {dealer_hand.get_value()})")
+
     dealer_total = dealer_hand.get_value()
-    player_total = player_hand.get_value()
 
     # --- PENENTUAN PEMENANG ---
     print("\n" + "=" * 40)
-    if dealer_total > 21:
-        print(f"Dealer BUST ({dealer_total})! KAMU MENANG!")
-        chips += bet
-        print(f"Kamu mendapatkan ${bet}!")
-    elif player_total > dealer_total:
-        print(f"HASIL: Kamu ({player_total}) vs Dealer ({dealer_total}) -> KAMU MENANG!")
-        chips += bet
-        print(f"Kamu mendapatkan ${bet}!")
-    elif player_total < dealer_total:
-        print(f"HASIL: Kamu ({player_total}) vs Dealer ({dealer_total}) -> DEALER MENANG!")
-        chips -= bet
-        print(f"Kamu kehilangan ${bet}.")
-    else:
-        print(f"HASIL: Kamu ({player_total}) vs Dealer ({dealer_total}) -> SERI (PUSH)!")
-        print("Taruhan kamu dikembalikan.")
+    print("              HASIL RONDE              ")
+    print("=" * 40)
+
+    for hand, hand_bet, is_bust, label in player_hands:
+        hand_val = hand.get_value()
+        prefix = f"[{label}] " if len(player_hands) > 1 else ""
+
+        if is_bust:
+            print(f"{prefix}BUST ({hand_val})! Kamu kehilangan ${hand_bet}.")
+        elif dealer_total > 21:
+            print(f"{prefix}Dealer BUST! KAMU MENANG ${hand_bet}!")
+            chips += hand_bet * 2
+        elif hand_val > dealer_total:
+            print(f"{prefix}Kamu ({hand_val}) vs Dealer ({dealer_total}) -> KAMU MENANG ${hand_bet}!")
+            chips += hand_bet * 2
+        elif hand_val < dealer_total:
+            print(f"{prefix}Kamu ({hand_val}) vs Dealer ({dealer_total}) -> KALAH! Kehilangan ${hand_bet}.")
+        else:
+            print(f"{prefix}Kamu ({hand_val}) vs Dealer ({dealer_total}) -> SERI (PUSH)! Taruhan dikembalikan.")
+            chips += hand_bet
 
     return int(chips)
 
