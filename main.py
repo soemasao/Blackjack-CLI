@@ -16,15 +16,25 @@ class Card:
         else:
             return int(self.rank)
 
+# Class Deck mendukung Multi-Deck (Shoe) & Reshuffle
 class Deck:
-    def __init__(self):
+    def __init__(self, num_decks=6):
+        self.num_decks = num_decks
+        self.cards = []
+        self.build_and_shuffle()
+
+    def build_and_shuffle(self):
         suits = ['♠', '♥', '♦', '♣']
         ranks = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A']
-        self.cards = [Card(suit, rank) for suit in suits for rank in ranks]
+        self.cards = [Card(suit, rank) for suit in suits for rank in ranks] * self.num_decks
         random.shuffle(self.cards)
+        print(f"\n🔄 Tumpukan kartu dikocok ulang ({self.num_decks} Deck / {len(self.cards)} kartu).")
 
     def deal_card(self):
         return self.cards.pop()
+
+    def remaining_cards(self):
+        return len(self.cards)
 
 class Hand:
     def __init__(self):
@@ -96,9 +106,13 @@ def play_hand(hand, deck, bet, chips, hand_label=""):
 
     return hand, current_bet, chips, player_busted
 
-def play_round(chips):
+def play_round(chips, deck):
+    # Cek jika sisa kartu di shoe kurang dari 52, maka kocok ulang
+    if deck.remaining_cards() < 52:
+        deck.build_and_shuffle()
+
     print("\n" + "=" * 40)
-    print(f" Total Chip Kamu: ${chips}")
+    print(f" Total Chip Kamu: ${chips} | Sisa Kartu di Shoe: {deck.remaining_cards()}")
     print("=" * 40)
 
     # Input taruhan awal
@@ -113,7 +127,6 @@ def play_round(chips):
 
     chips -= bet  # Kurangi taruhan awal dari saldo chip
 
-    deck = Deck()
     player_hand = Hand()
     dealer_hand = Hand()
 
@@ -162,7 +175,7 @@ def play_round(chips):
         print("-> Dealer TIDAK Blackjack. Uang Insurance hangus.")
 
     # List untuk menampung semua tangan pemain
-    player_hands = []  # Elemen: tuple (Hand, bet_amount, is_busted, label)
+    player_hands = []
 
     # --- FITUR SPLIT ---
     can_split = (player_hand.cards[0].get_value() == player_hand.cards[1].get_value()) and (chips >= bet)
@@ -173,7 +186,6 @@ def play_round(chips):
             chips -= bet  # Kurangi chip untuk tangan kedua
             print(f"-> Kamu memilih SPLIT! Menambah taruhan ${bet} untuk tangan kedua.")
 
-            # Buat 2 Hand terpisah
             hand1 = Hand()
             hand1.add_card(player_hand.cards[0])
             hand1.add_card(deck.deal_card())
@@ -182,17 +194,14 @@ def play_round(chips):
             hand2.add_card(player_hand.cards[1])
             hand2.add_card(deck.deal_card())
 
-            # Mainkan Tangan 1
             print("\n--- Memainkan Tangan 1 ---")
             hand1, bet1, chips, bust1 = play_hand(hand1, deck, bet, chips, "Tangan 1")
             player_hands.append((hand1, bet1, bust1, "Tangan 1"))
 
-            # Mainkan Tangan 2
             print("\n--- Memainkan Tangan 2 ---")
             hand2, bet2, chips, bust2 = play_hand(hand2, deck, bet, chips, "Tangan 2")
             player_hands.append((hand2, bet2, bust2, "Tangan 2"))
 
-    # Jika tidak Melakukan Split
     if not player_hands:
         hand, final_bet, chips, is_bust = play_hand(player_hand, deck, bet, chips)
         player_hands.append((hand, final_bet, is_bust, "Utama"))
@@ -243,9 +252,10 @@ def main():
     print("========================================")
 
     chips = 100
+    deck = Deck(num_decks=6)  # Menggunakan 6 Multi-Deck (Shoe)
 
     while chips > 0:
-        chips = play_round(chips)
+        chips = play_round(chips, deck)
 
         if chips <= 0:
             print("\n" + "x" * 40)
