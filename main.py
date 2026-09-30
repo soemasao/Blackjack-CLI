@@ -1,12 +1,34 @@
 import random
 
+# Definisi Kode Warna ANSI untuk Terminal
+class Color:
+    RESET = '\033[0m'
+    BOLD = '\033[1m'
+    RED = '\033[91m'
+    GREEN = '\033[92m'
+    YELLOW = '\033[93m'
+    BLUE = '\033[94m'
+    MAGENTA = '\033[95m'
+    CYAN = '\033[96m'
+    WHITE = '\033[97m'
+
 class Card:
     def __init__(self, suit, rank):
         self.suit = suit
         self.rank = rank
 
-    def __str__(self):
-        return f"[{self.suit} {self.rank}]"
+    # Format Tampilan Kartu Spesifik per Pemilik (Player vs Dealer)
+    def display_card(self, owner="player"):
+        # Warna Simbol (Merah untuk ♥/♦, Putih untuk ♠/♣)
+        suit_color = Color.RED if self.suit in ['♥', '♦'] else Color.WHITE
+        
+        # Pembeda Warna Bingkai Kartu Berdasarkan Pemilik
+        if owner == "dealer":
+            border_color = Color.YELLOW  # Kartu Dealer berwarna KUNING
+        else:
+            border_color = Color.CYAN    # Kartu Kamu berwarna CYAN / BIRU MUDA
+
+        return f"{border_color}[{suit_color}{self.suit} {self.rank}{border_color}]{Color.RESET}"
 
     def get_value(self):
         if self.rank in ['J', 'Q', 'K']:
@@ -16,7 +38,6 @@ class Card:
         else:
             return int(self.rank)
 
-# Class Deck mendukung Multi-Deck (Shoe) & Reshuffle
 class Deck:
     def __init__(self, num_decks=6):
         self.num_decks = num_decks
@@ -28,7 +49,7 @@ class Deck:
         ranks = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A']
         self.cards = [Card(suit, rank) for suit in suits for rank in ranks] * self.num_decks
         random.shuffle(self.cards)
-        print(f"\n🔄 Tumpukan kartu dikocok ulang ({self.num_decks} Deck / {len(self.cards)} kartu).")
+        print(f"\n{Color.GREEN}🔄 Tumpukan kartu dikocok ulang ({self.num_decks} Deck / {len(self.cards)} kartu).{Color.RESET}")
 
     def deal_card(self):
         return self.cards.pop()
@@ -53,79 +74,77 @@ class Hand:
 
         return value
 
-    def display(self, hide_first_card=False):
+    def display(self, hide_first_card=False, owner="player"):
         if hide_first_card:
-            return f"[❓] " + " ".join(str(card) for card in self.cards[1:])
-        return " ".join(str(card) for card in self.cards)
+            hidden_symbol = f"{Color.YELLOW}[❓]{Color.RESET}"
+            return f"{hidden_symbol} " + " ".join(card.display_card(owner) for card in self.cards[1:])
+        return " ".join(card.display_card(owner) for card in self.cards)
 
-# Fungsi untuk memainkan giliran satu Hand (Tangan)
 def play_hand(hand, deck, bet, chips, hand_label=""):
     player_busted = False
     current_bet = bet
 
     while True:
         label_str = f" ({hand_label})" if hand_label else ""
-        print(f"\nKartu Kamu{label_str} : {hand.display()}  (Total: {hand.get_value()})")
+        print(f"\n{Color.CYAN}{Color.BOLD}Kartu Kamu{label_str} : {hand.display(owner='player')}  {Color.WHITE}(Total: {hand.get_value()}){Color.RESET}")
 
         if hand.get_value() == 21:
-            print(f"BLACKJACK pada {hand_label if hand_label else 'tangan kamu'}!")
+            print(f"{Color.MAGENTA}{Color.BOLD}★ BLACKJACK pada {hand_label if hand_label else 'tangan kamu'}! ★{Color.RESET}")
             break
         elif hand.get_value() > 21:
-            print(f"BUST pada {hand_label if hand_label else 'tangan kamu'}!")
+            print(f"{Color.RED}{Color.BOLD}💥 BUST pada {hand_label if hand_label else 'tangan kamu'}!{Color.RESET}")
             player_busted = True
             break
 
         can_double = (len(hand.cards) == 2) and (chips >= current_bet)
 
         if can_double:
-            prompt = "Pilih aksi ([1] Hit / [2] Stand / [3] Double Down): "
+            prompt = f"{Color.WHITE}Pilih aksi ([1] Hit / [2] Stand / [3] Double Down): {Color.RESET}"
         else:
-            prompt = "Pilih aksi ([1] Hit / [2] Stand): "
+            prompt = f"{Color.WHITE}Pilih aksi ([1] Hit / [2] Stand): {Color.RESET}"
 
         choice = input(prompt).strip()
 
         if choice == '1':
             hand.add_card(deck.deal_card())
-            print("-> Kamu memilih HIT!")
+            print(f"{Color.CYAN}-> Kamu memilih HIT!{Color.RESET}")
         elif choice == '2':
-            print("-> Kamu memilih STAND.")
+            print(f"{Color.CYAN}-> Kamu memilih STAND.{Color.RESET}")
             break
         elif choice == '3' and can_double:
             chips -= current_bet
             current_bet *= 2
-            print(f"-> Kamu memilih DOUBLE DOWN! Taruhan naik menjadi ${current_bet}.")
+            print(f"{Color.MAGENTA}-> Kamu memilih DOUBLE DOWN! Taruhan naik menjadi ${current_bet}.{Color.RESET}")
             hand.add_card(deck.deal_card())
-            print(f"Kartu Kamu{label_str} : {hand.display()}  (Total: {hand.get_value()})")
+            print(f"{Color.CYAN}{Color.BOLD}Kartu Kamu{label_str} : {hand.display(owner='player')}  {Color.WHITE}(Total: {hand.get_value()}){Color.RESET}")
             
             if hand.get_value() > 21:
-                print(f"BUST pada {hand_label if hand_label else 'tangan kamu'}!")
+                print(f"{Color.RED}{Color.BOLD}💥 BUST pada {hand_label if hand_label else 'tangan kamu'}!{Color.RESET}")
                 player_busted = True
             break
         else:
-            print("Pilihan tidak valid.")
+            print(f"{Color.RED}Pilihan tidak valid.{Color.RESET}")
 
     return hand, current_bet, chips, player_busted
 
 def play_round(chips, deck):
-    # Cek jika sisa kartu di shoe kurang dari 52, maka kocok ulang
     if deck.remaining_cards() < 52:
         deck.build_and_shuffle()
 
-    print("\n" + "=" * 40)
-    print(f" Total Chip Kamu: ${chips} | Sisa Kartu di Shoe: {deck.remaining_cards()}")
-    print("=" * 40)
+    print("\n" + Color.GREEN + "=" * 45 + Color.RESET)
+    print(f"{Color.YELLOW}{Color.BOLD} 💰 Total Chip: ${chips}{Color.RESET} | {Color.WHITE}🎴 Sisa Kartu: {deck.remaining_cards()}{Color.RESET}")
+    print(Color.GREEN + "=" * 45 + Color.RESET)
 
-    # Input taruhan awal
     while True:
         try:
-            bet = int(input(f"Masukkan jumlah taruhan (1 - {chips}): $"))
+            bet = int(input(f"{Color.YELLOW}Masukkan jumlah taruhan (1 - {chips}): ${Color.RESET}"))
             if 1 <= bet <= chips:
                 break
-            print(f"Taruhan tidak valid! Harus antara $1 dan ${chips}.")
+            print(f"{Color.RED}Taruhan tidak valid! Harus antara $1 dan ${chips}.{Color.RESET}")
         except ValueError:
-            print("Masukkan angka yang valid!")
+            print(f"{Color.RED}Masukkan angka yang valid!{Color.RESET}")
 
-    chips -= bet  # Kurangi taruhan awal dari saldo chip
+    chips -= bet
 
     player_hand = Hand()
     dealer_hand = Hand()
@@ -134,8 +153,9 @@ def play_round(chips, deck):
         player_hand.add_card(deck.deal_card())
         dealer_hand.add_card(deck.deal_card())
 
-    print(f"\nKartu Dealer : {dealer_hand.display(hide_first_card=True)}")
-    print(f"Kartu Kamu   : {player_hand.display()}  (Total: {player_hand.get_value()})")
+    # Tampilan pembeda warna kartu awal
+    print(f"\n{Color.YELLOW}{Color.BOLD}Kartu Dealer : {dealer_hand.display(hide_first_card=True, owner='dealer')}{Color.RESET}")
+    print(f"{Color.CYAN}{Color.BOLD}Kartu Kamu   : {player_hand.display(owner='player')}  {Color.WHITE}(Total: {player_hand.get_value()}){Color.RESET}")
 
     # --- FITUR INSURANCE ---
     insurance_bet = 0
@@ -143,48 +163,47 @@ def play_round(chips, deck):
     
     if dealer_upcard.rank == 'A' and chips >= (bet / 2):
         max_insurance = bet / 2
-        print("\n⚠️ Dealer menunjukkan kartu ACE!")
+        print(f"\n{Color.YELLOW}⚠️ Dealer menunjukkan kartu ACE!{Color.RESET}")
         take_insurance = input(f"Beli Insurance senilai ${int(max_insurance)}? (y/n): ").strip().lower()
         if take_insurance == 'y':
             insurance_bet = max_insurance
             chips -= insurance_bet
-            print(f"-> Insurance dipasang sebesar ${int(insurance_bet)}.")
+            print(f"{Color.CYAN}-> Insurance dipasang sebesar ${int(insurance_bet)}.{Color.RESET}")
 
     dealer_has_blackjack = (dealer_hand.get_value() == 21)
 
     if dealer_upcard.rank == 'A' and dealer_has_blackjack:
-        print("\n" + "=" * 40)
-        print(f"Dealer membuka kartu: {dealer_hand.display()}")
-        print("DEALER DAPAT BLACKJACK!")
-        print("=" * 40)
+        print("\n" + Color.RED + "=" * 45 + Color.RESET)
+        print(f"{Color.YELLOW}Dealer membuka kartu: {dealer_hand.display(owner='dealer')}{Color.RESET}")
+        print(f"{Color.RED}{Color.BOLD}DEALER DAPAT BLACKJACK!{Color.RESET}")
+        print(Color.RED + "=" * 45 + Color.RESET)
 
         if insurance_bet > 0:
-            payout = insurance_bet * 3  # Kembalikan taruhan insurance + bayaran 2:1
-            print(f"✅ Insurance KAMU MENANG! Kamu dibayar ${int(insurance_bet * 2)}.")
+            payout = insurance_bet * 3
+            print(f"{Color.GREEN}✅ Insurance KAMU MENANG! Kamu dibayar ${int(insurance_bet * 2)}.{Color.RESET}")
             chips += payout
         
         if player_hand.get_value() == 21:
-            print("Pemain juga Blackjack! Taruhan utama SERI (Push).")
+            print(f"{Color.YELLOW}Pemain juga Blackjack! Taruhan utama SERI (Push).{Color.RESET}")
             chips += bet
         else:
-            print(f"❌ Taruhan utama kalah. Kamu kehilangan ${bet}.")
+            print(f"{Color.RED}❌ Taruhan utama kalah. Kamu kehilangan ${bet}.{Color.RESET}")
 
         return int(chips)
     
     elif insurance_bet > 0:
-        print("-> Dealer TIDAK Blackjack. Uang Insurance hangus.")
+        print(f"{Color.YELLOW}-> Dealer TIDAK Blackjack. Uang Insurance hangus.{Color.RESET}")
 
-    # List untuk menampung semua tangan pemain
     player_hands = []
 
     # --- FITUR SPLIT ---
     can_split = (player_hand.cards[0].get_value() == player_hand.cards[1].get_value()) and (chips >= bet)
 
     if can_split:
-        do_split = input("\nKartu kamu bernilai sama! Lakukan SPLIT? (y/n): ").strip().lower()
+        do_split = input(f"\n{Color.MAGENTA}Kartu kamu bernilai sama! Lakukan SPLIT? (y/n): {Color.RESET}").strip().lower()
         if do_split == 'y':
-            chips -= bet  # Kurangi chip untuk tangan kedua
-            print(f"-> Kamu memilih SPLIT! Menambah taruhan ${bet} untuk tangan kedua.")
+            chips -= bet
+            print(f"{Color.MAGENTA}-> Kamu memilih SPLIT! Menambah taruhan ${bet} untuk tangan kedua.{Color.RESET}")
 
             hand1 = Hand()
             hand1.add_card(player_hand.cards[0])
@@ -194,11 +213,11 @@ def play_round(chips, deck):
             hand2.add_card(player_hand.cards[1])
             hand2.add_card(deck.deal_card())
 
-            print("\n--- Memainkan Tangan 1 ---")
+            print(f"\n{Color.CYAN}--- Memainkan Tangan 1 ---{Color.RESET}")
             hand1, bet1, chips, bust1 = play_hand(hand1, deck, bet, chips, "Tangan 1")
             player_hands.append((hand1, bet1, bust1, "Tangan 1"))
 
-            print("\n--- Memainkan Tangan 2 ---")
+            print(f"\n{Color.CYAN}--- Memainkan Tangan 2 ---{Color.RESET}")
             hand2, bet2, chips, bust2 = play_hand(hand2, deck, bet, chips, "Tangan 2")
             player_hands.append((hand2, bet2, bust2, "Tangan 2"))
 
@@ -210,62 +229,62 @@ def play_round(chips, deck):
     all_busted = all(busted for _, _, busted, _ in player_hands)
 
     if not all_busted:
-        print("\n" + "-" * 40)
-        print("Giliran Dealer...")
-        print(f"Kartu Dealer : {dealer_hand.display()}  (Total: {dealer_hand.get_value()})")
+        print("\n" + Color.YELLOW + "-" * 45 + Color.RESET)
+        print(f"{Color.YELLOW}{Color.BOLD}Giliran Dealer...{Color.RESET}")
+        print(f"{Color.YELLOW}Kartu Dealer : {dealer_hand.display(owner='dealer')}  {Color.WHITE}(Total: {dealer_hand.get_value()}){Color.RESET}")
 
         while dealer_hand.get_value() < 17:
-            print("Dealer memilih HIT...")
+            print(f"{Color.YELLOW}Dealer memilih HIT...{Color.RESET}")
             dealer_hand.add_card(deck.deal_card())
-            print(f"Kartu Dealer : {dealer_hand.display()}  (Total: {dealer_hand.get_value()})")
+            print(f"{Color.YELLOW}Kartu Dealer : {dealer_hand.display(owner='dealer')}  {Color.WHITE}(Total: {dealer_hand.get_value()}){Color.RESET}")
 
     dealer_total = dealer_hand.get_value()
 
     # --- PENENTUAN PEMENANG ---
-    print("\n" + "=" * 40)
-    print("              HASIL RONDE              ")
-    print("=" * 40)
+    print("\n" + Color.GREEN + "=" * 45 + Color.RESET)
+    print(f"{Color.BOLD}{Color.GREEN}              HASIL RONDE              {Color.RESET}")
+    print(Color.GREEN + "=" * 45 + Color.RESET)
 
     for hand, hand_bet, is_bust, label in player_hands:
         hand_val = hand.get_value()
         prefix = f"[{label}] " if len(player_hands) > 1 else ""
 
         if is_bust:
-            print(f"{prefix}BUST ({hand_val})! Kamu kehilangan ${hand_bet}.")
+            print(f"{prefix}{Color.RED}BUST ({hand_val})! Kamu kehilangan ${hand_bet}.{Color.RESET}")
         elif dealer_total > 21:
-            print(f"{prefix}Dealer BUST! KAMU MENANG ${hand_bet}!")
+            print(f"{prefix}{Color.GREEN}{Color.BOLD}Dealer BUST! KAMU MENANG ${hand_bet}! 🎉{Color.RESET}")
             chips += hand_bet * 2
         elif hand_val > dealer_total:
-            print(f"{prefix}Kamu ({hand_val}) vs Dealer ({dealer_total}) -> KAMU MENANG ${hand_bet}!")
+            print(f"{prefix}{Color.GREEN}{Color.BOLD}Kamu ({hand_val}) vs Dealer ({dealer_total}) -> KAMU MENANG ${hand_bet}! 🎉{Color.RESET}")
             chips += hand_bet * 2
         elif hand_val < dealer_total:
-            print(f"{prefix}Kamu ({hand_val}) vs Dealer ({dealer_total}) -> KALAH! Kehilangan ${hand_bet}.")
+            print(f"{prefix}{Color.RED}Kamu ({hand_val}) vs Dealer ({dealer_total}) -> KALAH! Kehilangan ${hand_bet}.{Color.RESET}")
         else:
-            print(f"{prefix}Kamu ({hand_val}) vs Dealer ({dealer_total}) -> SERI (PUSH)! Taruhan dikembalikan.")
+            print(f"{prefix}{Color.YELLOW}Kamu ({hand_val}) vs Dealer ({dealer_total}) -> SERI (PUSH)! Taruhan dikembalikan.{Color.RESET}")
             chips += hand_bet
 
     return int(chips)
 
 def main():
-    print("========================================")
-    print("        WELCOME TO BLACKJACK CLI        ")
-    print("========================================")
+    print(Color.GREEN + "=" * 45 + Color.RESET)
+    print(f"{Color.BOLD}{Color.YELLOW}       🃏 WELCOME TO BLACKJACK CLI 🃏       {Color.RESET}")
+    print(Color.GREEN + "=" * 45 + Color.RESET)
 
     chips = 100
-    deck = Deck(num_decks=6)  # Menggunakan 6 Multi-Deck (Shoe)
+    deck = Deck(num_decks=6)
 
     while chips > 0:
         chips = play_round(chips, deck)
 
         if chips <= 0:
-            print("\n" + "x" * 40)
-            print("BANKRUPT! Chip kamu habis. Game Over.")
-            print("x" * 40)
+            print("\n" + Color.RED + "x" * 45 + Color.RESET)
+            print(f"{Color.RED}{Color.BOLD}💥 BANKRUPT! Chip kamu habis. Game Over.{Color.RESET}")
+            print(Color.RED + "x" * 45 + Color.RESET)
             break
 
-        play_again = input("\nMain ronde berikutnya? ([y]/n): ").strip().lower()
+        play_again = input(f"\n{Color.YELLOW}Main ronde berikutnya? ([y]/n): {Color.RESET}").strip().lower()
         if play_again == 'n':
-            print(f"\nTerima kasih sudah bermain! Sisa chip kamu: ${int(chips)}")
+            print(f"\n{Color.GREEN}Terima kasih sudah bermain! Sisa chip kamu: ${int(chips)}{Color.RESET}")
             break
 
 if __name__ == "__main__":
