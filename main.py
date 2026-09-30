@@ -17,17 +17,9 @@ class Card:
         self.suit = suit
         self.rank = rank
 
-    # Format Tampilan Kartu Spesifik per Pemilik (Player vs Dealer)
     def display_card(self, owner="player"):
-        # Warna Simbol (Merah untuk ♥/♦, Putih untuk ♠/♣)
         suit_color = Color.RED if self.suit in ['♥', '♦'] else Color.WHITE
-        
-        # Pembeda Warna Bingkai Kartu Berdasarkan Pemilik
-        if owner == "dealer":
-            border_color = Color.YELLOW  # Kartu Dealer berwarna KUNING
-        else:
-            border_color = Color.CYAN    # Kartu Kamu berwarna CYAN / BIRU MUDA
-
+        border_color = Color.YELLOW if owner == "dealer" else Color.CYAN
         return f"{border_color}[{suit_color}{self.suit} {self.rank}{border_color}]{Color.RESET}"
 
     def get_value(self):
@@ -74,6 +66,9 @@ class Hand:
 
         return value
 
+    def is_natural_blackjack(self):
+        return len(self.cards) == 2 and self.get_value() == 21
+
     def display(self, hide_first_card=False, owner="player"):
         if hide_first_card:
             hidden_symbol = f"{Color.YELLOW}[❓]{Color.RESET}"
@@ -89,7 +84,7 @@ def play_hand(hand, deck, bet, chips, hand_label=""):
         print(f"\n{Color.CYAN}{Color.BOLD}Kartu Kamu{label_str} : {hand.display(owner='player')}  {Color.WHITE}(Total: {hand.get_value()}){Color.RESET}")
 
         if hand.get_value() == 21:
-            print(f"{Color.MAGENTA}{Color.BOLD}★ BLACKJACK pada {hand_label if hand_label else 'tangan kamu'}! ★{Color.RESET}")
+            print(f"{Color.MAGENTA}{Color.BOLD}★ Total kamu 21 pada {hand_label if hand_label else 'tangan kamu'}! ★{Color.RESET}")
             break
         elif hand.get_value() > 21:
             print(f"{Color.RED}{Color.BOLD}💥 BUST pada {hand_label if hand_label else 'tangan kamu'}!{Color.RESET}")
@@ -153,15 +148,18 @@ def play_round(chips, deck):
         player_hand.add_card(deck.deal_card())
         dealer_hand.add_card(deck.deal_card())
 
-    # Tampilan pembeda warna kartu awal
     print(f"\n{Color.YELLOW}{Color.BOLD}Kartu Dealer : {dealer_hand.display(hide_first_card=True, owner='dealer')}{Color.RESET}")
     print(f"{Color.CYAN}{Color.BOLD}Kartu Kamu   : {player_hand.display(owner='player')}  {Color.WHITE}(Total: {player_hand.get_value()}){Color.RESET}")
 
-    # --- FITUR INSURANCE ---
+    # --- PERIKSA NATURAL BLACKJACK KEDUA PIHAK ---
+    player_natural = player_hand.is_natural_blackjack()
+    dealer_natural = dealer_hand.is_natural_blackjack()
+
+    # --- FITUR INSURANCE (Kalo Dealer Ace) ---
     insurance_bet = 0
     dealer_upcard = dealer_hand.cards[1]
     
-    if dealer_upcard.rank == 'A' and chips >= (bet / 2):
+    if dealer_upcard.rank == 'A' and chips >= (bet / 2) and not player_natural:
         max_insurance = bet / 2
         print(f"\n{Color.YELLOW}⚠️ Dealer menunjukkan kartu ACE!{Color.RESET}")
         take_insurance = input(f"Beli Insurance senilai ${int(max_insurance)}? (y/n): ").strip().lower()
@@ -170,28 +168,29 @@ def play_round(chips, deck):
             chips -= insurance_bet
             print(f"{Color.CYAN}-> Insurance dipasang sebesar ${int(insurance_bet)}.{Color.RESET}")
 
-    dealer_has_blackjack = (dealer_hand.get_value() == 21)
-
-    if dealer_upcard.rank == 'A' and dealer_has_blackjack:
-        print("\n" + Color.RED + "=" * 45 + Color.RESET)
+    # Penanganan Kasus Natural Blackjack
+    if player_natural or dealer_natural:
+        print("\n" + Color.GREEN + "=" * 45 + Color.RESET)
         print(f"{Color.YELLOW}Dealer membuka kartu: {dealer_hand.display(owner='dealer')}{Color.RESET}")
-        print(f"{Color.RED}{Color.BOLD}DEALER DAPAT BLACKJACK!{Color.RESET}")
-        print(Color.RED + "=" * 45 + Color.RESET)
 
-        if insurance_bet > 0:
-            payout = insurance_bet * 3
-            print(f"{Color.GREEN}✅ Insurance KAMU MENANG! Kamu dibayar ${int(insurance_bet * 2)}.{Color.RESET}")
-            chips += payout
-        
-        if player_hand.get_value() == 21:
-            print(f"{Color.YELLOW}Pemain juga Blackjack! Taruhan utama SERI (Push).{Color.RESET}")
+        if player_natural and dealer_natural:
+            print(f"{Color.YELLOW}{Color.BOLD}KEDUA PIHAK NATURAL BLACKJACK! Hasil Seri (Push). Taruhan dikembalikan.{Color.RESET}")
             chips += bet
+        elif player_natural:
+            payout = int(bet * 1.5)  # PAYOUT 3:2 (1.5x)
+            print(f"{Color.MAGENTA}{Color.BOLD}★ NATURAL BLACKJACK! KAMU MENANG (PAYOUT 3:2)! ★{Color.RESET}")
+            print(f"{Color.GREEN}Keuntungan: ${payout} (Total didapat: ${bet + payout}){Color.RESET}")
+            chips += bet + payout
         else:
-            print(f"{Color.RED}❌ Taruhan utama kalah. Kamu kehilangan ${bet}.{Color.RESET}")
+            print(f"{Color.RED}{Color.BOLD}DEALER DAPAT NATURAL BLACKJACK! KAMU KALAH!{Color.RESET}")
+            if insurance_bet > 0:
+                print(f"{Color.GREEN}✅ Insurance Menang! Dibayar ${int(insurance_bet * 2)}.{Color.RESET}")
+                chips += int(insurance_bet * 3)
 
+        print(Color.GREEN + "=" * 45 + Color.RESET)
         return int(chips)
-    
-    elif insurance_bet > 0:
+
+    if insurance_bet > 0:
         print(f"{Color.YELLOW}-> Dealer TIDAK Blackjack. Uang Insurance hangus.{Color.RESET}")
 
     player_hands = []
