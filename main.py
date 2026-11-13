@@ -48,13 +48,12 @@ class Hand:
             return f"[❓] " + " ".join(str(card) for card in self.cards[1:])
         return " ".join(str(card) for card in self.cards)
 
-# Logika Ronde Tunggal dengan Taruhan
 def play_round(chips):
     print("\n" + "=" * 40)
     print(f" Total Chip Kamu: ${chips}")
     print("=" * 40)
 
-    # Input jumlah taruhan dengan validasi
+    # Input taruhan awal
     while True:
         try:
             bet = int(input(f"Masukkan jumlah taruhan (1 - {chips}): $"))
@@ -74,6 +73,7 @@ def play_round(chips):
 
     # Giliran Player
     player_busted = False
+    
     while True:
         print(f"\nKartu Dealer : {dealer_hand.display(hide_first_card=True)}")
         print(f"Kartu Kamu   : {player_hand.display()}  (Total: {player_hand.get_value()})")
@@ -86,22 +86,40 @@ def play_round(chips):
             player_busted = True
             break
 
-        choice = input("\nPilih aksi ([1] Hit / [2] Stand): ").strip()
+        # Cek apakah opsi Double Down bisa muncul
+        can_double = (len(player_hand.cards) == 2) and (chips >= bet * 2)
+
+        if can_double:
+            prompt = "\nPilih aksi ([1] Hit / [2] Stand / [3] Double Down): "
+        else:
+            prompt = "\nPilih aksi ([1] Hit / [2] Stand): "
+
+        choice = input(prompt).strip()
+
         if choice == '1':
             player_hand.add_card(deck.deal_card())
             print("-> Kamu memilih HIT!")
         elif choice == '2':
             print("-> Kamu memilih STAND.")
             break
+        elif choice == '3' and can_double:
+            bet *= 2
+            print(f"-> Kamu memilih DOUBLE DOWN! Taruhan naik menjadi ${bet}.")
+            player_hand.add_card(deck.deal_card())
+            print(f"Kartu Kamu   : {player_hand.display()}  (Total: {player_hand.get_value()})")
+            
+            if player_hand.get_value() > 21:
+                print("\nBUST! Total kartu kamu melebihi 21.")
+                player_busted = True
+            break
         else:
-            print("Pilihan tidak valid, masukkan 1 atau 2.")
+            print("Pilihan tidak valid.")
 
-    # Jika Player Bust, langsung kalahkan taruhan
     if player_busted:
         print(f"\nKAMU KALAH! Kamu kehilangan ${bet}.")
         return chips - bet
 
-    # Giliran Dealer
+    # Giliran Dealer[cite: 1]
     print("\n" + "-" * 40)
     print("Giliran Dealer...")
     print(f"Kartu Dealer : {dealer_hand.display()}  (Total: {dealer_hand.get_value()})")
@@ -114,7 +132,7 @@ def play_round(chips):
     dealer_total = dealer_hand.get_value()
     player_total = player_hand.get_value()
 
-    # Penentuan Pemenang dan Pengolahan Chip
+    # Penentuan Pemenang[cite: 1]
     print("\n" + "=" * 40)
     if dealer_total > 21:
         print(f"Dealer BUST ({dealer_total})! KAMU MENANG!")
@@ -134,13 +152,12 @@ def play_round(chips):
 
     return chips
 
-# Main Game Loop
 def main():
     print("========================================")
     print("        WELCOME TO BLACKJACK CLI        ")
     print("========================================")
 
-    chips = 100  # Modal awal chip pemain
+    chips = 100
 
     while chips > 0:
         chips = play_round(chips)
