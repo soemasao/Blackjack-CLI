@@ -71,13 +71,53 @@ def play_round(chips):
         player_hand.add_card(deck.deal_card())
         dealer_hand.add_card(deck.deal_card())
 
-    # Giliran Player
+    print(f"\nKartu Dealer : {dealer_hand.display(hide_first_card=True)}")
+    print(f"Kartu Kamu   : {player_hand.display()}  (Total: {player_hand.get_value()})")
+
+    # --- FITUR INSURANCE ---
+    insurance_bet = 0
+    # Kartu terbuka dealer adalah kartu kedua di list dealer_hand.cards (karena kartu pertama disembunyikan)
+    dealer_upcard = dealer_hand.cards[1]
+    
+    if dealer_upcard.rank == 'A':
+        max_insurance = bet / 2
+        if chips - bet >= max_insurance:
+            print("\n⚠️ Dealer menunjukkan kartu ACE!")
+            take_insurance = input(f"Beli Insurance senilai ${int(max_insurance)}? (y/n): ").strip().lower()
+            if take_insurance == 'y':
+                insurance_bet = max_insurance
+                print(f"-> Insurance dipasang sebesar ${int(insurance_bet)}.")
+
+    # Cek apakah Dealer Blackjack saat kartu tertutup dibuka
+    dealer_has_blackjack = (dealer_hand.get_value() == 21)
+
+    if dealer_upcard.rank == 'A' and dealer_has_blackjack:
+        print("\n" + "=" * 40)
+        print(f"Dealer membuka kartu: {dealer_hand.display()}")
+        print("DEALER DAPAT BLACKJACK!")
+        print("=" * 40)
+
+        if insurance_bet > 0:
+            payout = insurance_bet * 2
+            print(f"✅ Insurance KAMU MENANG! Kamu dibayar ${int(payout)}.")
+            chips += payout  # Menang insurance 2:1
+        
+        if player_hand.get_value() == 21:
+            print("Pemain juga Blackjack! Taruhan utama SERI (Push).")
+        else:
+            print(f"❌ Taruhan utama kalah. Kamu kehilangan ${bet}.")
+            chips -= bet
+
+        return int(chips)
+    
+    elif insurance_bet > 0:
+        print("-> Dealer TIDAK Blackjack. Uang Insurance hangus.")
+        chips -= insurance_bet
+
+    # --- GILIRAN PLAYER ---
     player_busted = False
     
     while True:
-        print(f"\nKartu Dealer : {dealer_hand.display(hide_first_card=True)}")
-        print(f"Kartu Kamu   : {player_hand.display()}  (Total: {player_hand.get_value()})")
-
         if player_hand.get_value() == 21:
             print("\nBLACKJACK!")
             break
@@ -86,7 +126,6 @@ def play_round(chips):
             player_busted = True
             break
 
-        # Cek apakah opsi Double Down bisa muncul
         can_double = (len(player_hand.cards) == 2) and (chips >= bet * 2)
 
         if can_double:
@@ -99,6 +138,7 @@ def play_round(chips):
         if choice == '1':
             player_hand.add_card(deck.deal_card())
             print("-> Kamu memilih HIT!")
+            print(f"Kartu Kamu   : {player_hand.display()}  (Total: {player_hand.get_value()})")
         elif choice == '2':
             print("-> Kamu memilih STAND.")
             break
@@ -117,9 +157,9 @@ def play_round(chips):
 
     if player_busted:
         print(f"\nKAMU KALAH! Kamu kehilangan ${bet}.")
-        return chips - bet
+        return int(chips - bet)
 
-    # Giliran Dealer[cite: 1]
+    # --- GILIRAN DEALER ---
     print("\n" + "-" * 40)
     print("Giliran Dealer...")
     print(f"Kartu Dealer : {dealer_hand.display()}  (Total: {dealer_hand.get_value()})")
@@ -132,7 +172,7 @@ def play_round(chips):
     dealer_total = dealer_hand.get_value()
     player_total = player_hand.get_value()
 
-    # Penentuan Pemenang[cite: 1]
+    # --- PENENTUAN PEMENANG ---
     print("\n" + "=" * 40)
     if dealer_total > 21:
         print(f"Dealer BUST ({dealer_total})! KAMU MENANG!")
@@ -150,7 +190,7 @@ def play_round(chips):
         print(f"HASIL: Kamu ({player_total}) vs Dealer ({dealer_total}) -> SERI (PUSH)!")
         print("Taruhan kamu dikembalikan.")
 
-    return chips
+    return int(chips)
 
 def main():
     print("========================================")
@@ -170,7 +210,7 @@ def main():
 
         play_again = input("\nMain ronde berikutnya? ([y]/n): ").strip().lower()
         if play_again == 'n':
-            print(f"\nTerima kasih sudah bermain! Sisa chip kamu: ${chips}")
+            print(f"\nTerima kasih sudah bermain! Sisa chip kamu: ${int(chips)}")
             break
 
 if __name__ == "__main__":
