@@ -75,12 +75,21 @@ class Hand:
             return f"{hidden_symbol} " + " ".join(card.display_card(owner) for card in self.cards[1:])
         return " ".join(card.display_card(owner) for card in self.cards)
 
-def play_hand(hand, deck, bet, chips, hand_label=""):
+def play_hand(hand, deck, bet, chips, hand_label="", is_split_ace=False):
     player_busted = False
     current_bet = bet
+    label_str = f" ({hand_label})" if hand_label else ""
+
+    # Aturan khusus Split Ace: Cuma dapet 1 kartu, langsung Stand
+    if is_split_ace:
+        print(f"\n{Color.CYAN}{Color.BOLD}Kartu Kamu{label_str} : {hand.display(owner='player')}  {Color.WHITE}(Total: {hand.get_value()}){Color.RESET}")
+        print(f"{Color.YELLOW}⚠️ Split Ace: Hanya diperbolehkan 1 kartu tambahan per tangan.{Color.RESET}")
+        if hand.get_value() > 21:
+            print(f"{Color.RED}{Color.BOLD}💥 BUST pada {hand_label if hand_label else 'tangan kamu'}!{Color.RESET}")
+            player_busted = True
+        return hand, current_bet, chips, player_busted
 
     while True:
-        label_str = f" ({hand_label})" if hand_label else ""
         print(f"\n{Color.CYAN}{Color.BOLD}Kartu Kamu{label_str} : {hand.display(owner='player')}  {Color.WHITE}(Total: {hand.get_value()}){Color.RESET}")
 
         if hand.get_value() == 21:
@@ -151,11 +160,9 @@ def play_round(chips, deck):
     print(f"\n{Color.YELLOW}{Color.BOLD}Kartu Dealer : {dealer_hand.display(hide_first_card=True, owner='dealer')}{Color.RESET}")
     print(f"{Color.CYAN}{Color.BOLD}Kartu Kamu   : {player_hand.display(owner='player')}  {Color.WHITE}(Total: {player_hand.get_value()}){Color.RESET}")
 
-    # --- PERIKSA NATURAL BLACKJACK KEDUA PIHAK ---
     player_natural = player_hand.is_natural_blackjack()
     dealer_natural = dealer_hand.is_natural_blackjack()
 
-    # --- FITUR INSURANCE (Kalo Dealer Ace) ---
     insurance_bet = 0
     dealer_upcard = dealer_hand.cards[1]
     
@@ -168,7 +175,6 @@ def play_round(chips, deck):
             chips -= insurance_bet
             print(f"{Color.CYAN}-> Insurance dipasang sebesar ${int(insurance_bet)}.{Color.RESET}")
 
-    # Penanganan Kasus Natural Blackjack
     if player_natural or dealer_natural:
         print("\n" + Color.GREEN + "=" * 45 + Color.RESET)
         print(f"{Color.YELLOW}Dealer membuka kartu: {dealer_hand.display(owner='dealer')}{Color.RESET}")
@@ -177,7 +183,7 @@ def play_round(chips, deck):
             print(f"{Color.YELLOW}{Color.BOLD}KEDUA PIHAK NATURAL BLACKJACK! Hasil Seri (Push). Taruhan dikembalikan.{Color.RESET}")
             chips += bet
         elif player_natural:
-            payout = int(bet * 1.5)  # PAYOUT 3:2 (1.5x)
+            payout = int(bet * 1.5)
             print(f"{Color.MAGENTA}{Color.BOLD}★ NATURAL BLACKJACK! KAMU MENANG (PAYOUT 3:2)! ★{Color.RESET}")
             print(f"{Color.GREEN}Keuntungan: ${payout} (Total didapat: ${bet + payout}){Color.RESET}")
             chips += bet + payout
@@ -204,6 +210,9 @@ def play_round(chips, deck):
             chips -= bet
             print(f"{Color.MAGENTA}-> Kamu memilih SPLIT! Menambah taruhan ${bet} untuk tangan kedua.{Color.RESET}")
 
+            # Deteksi apakah kartu yang di-split adalah pasangan Ace
+            is_ace_split = (player_hand.cards[0].rank == 'A')
+
             hand1 = Hand()
             hand1.add_card(player_hand.cards[0])
             hand1.add_card(deck.deal_card())
@@ -213,11 +222,11 @@ def play_round(chips, deck):
             hand2.add_card(deck.deal_card())
 
             print(f"\n{Color.CYAN}--- Memainkan Tangan 1 ---{Color.RESET}")
-            hand1, bet1, chips, bust1 = play_hand(hand1, deck, bet, chips, "Tangan 1")
+            hand1, bet1, chips, bust1 = play_hand(hand1, deck, bet, chips, "Tangan 1", is_split_ace=is_ace_split)
             player_hands.append((hand1, bet1, bust1, "Tangan 1"))
 
             print(f"\n{Color.CYAN}--- Memainkan Tangan 2 ---{Color.RESET}")
-            hand2, bet2, chips, bust2 = play_hand(hand2, deck, bet, chips, "Tangan 2")
+            hand2, bet2, chips, bust2 = play_hand(hand2, deck, bet, chips, "Tangan 2", is_split_ace=is_ace_split)
             player_hands.append((hand2, bet2, bust2, "Tangan 2"))
 
     if not player_hands:
