@@ -131,12 +131,14 @@ def play_hand(hand, deck, bet, chips, hand_label="", is_split_ace=False):
 
     return hand, current_bet, chips, player_busted
 
-def play_round(chips, deck):
+def play_round(chips, deck, stats):
     if deck.remaining_cards() < 52:
         deck.build_and_shuffle()
 
+    stats["rounds"] += 1
+
     print("\n" + Color.GREEN + "=" * 45 + Color.RESET)
-    print(f"{Color.YELLOW}{Color.BOLD} 💰 Total Chip: ${chips}{Color.RESET} | {Color.WHITE}🎴 Sisa Kartu: {deck.remaining_cards()}{Color.RESET}")
+    print(f"{Color.YELLOW}{Color.BOLD} 💰 Total Chip: ${chips}{Color.RESET} | {Color.WHITE}🎴 Sisa Kartu: {deck.remaining_cards()} | Ronde #{stats['rounds']}{Color.RESET}")
     print(Color.GREEN + "=" * 45 + Color.RESET)
 
     while True:
@@ -175,6 +177,7 @@ def play_round(chips, deck):
             chips -= insurance_bet
             print(f"{Color.CYAN}-> Insurance dipasang sebesar ${int(insurance_bet)}.{Color.RESET}")
 
+    # Penanganan Kasus Natural Blackjack
     if player_natural or dealer_natural:
         print("\n" + Color.GREEN + "=" * 45 + Color.RESET)
         print(f"{Color.YELLOW}Dealer membuka kartu: {dealer_hand.display(owner='dealer')}{Color.RESET}")
@@ -182,13 +185,18 @@ def play_round(chips, deck):
         if player_natural and dealer_natural:
             print(f"{Color.YELLOW}{Color.BOLD}KEDUA PIHAK NATURAL BLACKJACK! Hasil Seri (Push). Taruhan dikembalikan.{Color.RESET}")
             chips += bet
+            stats["pushes"] += 1
+            stats["blackjacks"] += 1
         elif player_natural:
             payout = int(bet * 1.5)
             print(f"{Color.MAGENTA}{Color.BOLD}★ NATURAL BLACKJACK! KAMU MENANG (PAYOUT 3:2)! ★{Color.RESET}")
             print(f"{Color.GREEN}Keuntungan: ${payout} (Total didapat: ${bet + payout}){Color.RESET}")
             chips += bet + payout
+            stats["wins"] += 1
+            stats["blackjacks"] += 1
         else:
             print(f"{Color.RED}{Color.BOLD}DEALER DAPAT NATURAL BLACKJACK! KAMU KALAH!{Color.RESET}")
+            stats["losses"] += 1
             if insurance_bet > 0:
                 print(f"{Color.GREEN}✅ Insurance Menang! Dibayar ${int(insurance_bet * 2)}.{Color.RESET}")
                 chips += int(insurance_bet * 3)
@@ -210,7 +218,6 @@ def play_round(chips, deck):
             chips -= bet
             print(f"{Color.MAGENTA}-> Kamu memilih SPLIT! Menambah taruhan ${bet} untuk tangan kedua.{Color.RESET}")
 
-            # Deteksi apakah kartu yang di-split adalah pasangan Ace
             is_ace_split = (player_hand.cards[0].rank == 'A')
 
             hand1 = Hand()
@@ -248,7 +255,7 @@ def play_round(chips, deck):
 
     dealer_total = dealer_hand.get_value()
 
-    # --- PENENTUAN PEMENANG ---
+    # --- PENENTUAN PEMENANG & UPDATE STATISTIK ---
     print("\n" + Color.GREEN + "=" * 45 + Color.RESET)
     print(f"{Color.BOLD}{Color.GREEN}              HASIL RONDE              {Color.RESET}")
     print(Color.GREEN + "=" * 45 + Color.RESET)
@@ -259,30 +266,76 @@ def play_round(chips, deck):
 
         if is_bust:
             print(f"{prefix}{Color.RED}BUST ({hand_val})! Kamu kehilangan ${hand_bet}.{Color.RESET}")
+            stats["losses"] += 1
         elif dealer_total > 21:
             print(f"{prefix}{Color.GREEN}{Color.BOLD}Dealer BUST! KAMU MENANG ${hand_bet}! 🎉{Color.RESET}")
             chips += hand_bet * 2
+            stats["wins"] += 1
         elif hand_val > dealer_total:
             print(f"{prefix}{Color.GREEN}{Color.BOLD}Kamu ({hand_val}) vs Dealer ({dealer_total}) -> KAMU MENANG ${hand_bet}! 🎉{Color.RESET}")
             chips += hand_bet * 2
+            stats["wins"] += 1
         elif hand_val < dealer_total:
             print(f"{prefix}{Color.RED}Kamu ({hand_val}) vs Dealer ({dealer_total}) -> KALAH! Kehilangan ${hand_bet}.{Color.RESET}")
+            stats["losses"] += 1
         else:
             print(f"{prefix}{Color.YELLOW}Kamu ({hand_val}) vs Dealer ({dealer_total}) -> SERI (PUSH)! Taruhan dikembalikan.{Color.RESET}")
             chips += hand_bet
+            stats["pushes"] += 1
 
     return int(chips)
+
+def display_stats(stats, final_chips, initial_chips=100):
+    total_hands = stats["wins"] + stats["losses"] + stats["pushes"]
+    win_rate = (stats["wins"] / total_hands * 100) if total_hands > 0 else 0.0
+    net_profit = final_chips - initial_chips
+
+    print("\n" + Color.CYAN + "=" * 45 + Color.RESET)
+    print(f"{Color.BOLD}{Color.CYAN}          📊 STATISTIK SESI BERMAIN 📊         {Color.RESET}")
+    print(Color.CYAN + "=" * 45 + Color.RESET)
+    print(f"{Color.WHITE}Total Ronde Dimainkan : {Color.BOLD}{stats['rounds']}{Color.RESET}")
+    print(f"{Color.GREEN}Menang (Wins)         : {Color.BOLD}{stats['wins']}{Color.RESET}")
+    print(f"{Color.RED}Kalah (Losses)        : {Color.BOLD}{stats['losses']}{Color.RESET}")
+    print(f"{Color.YELLOW}Seri (Pushes)         : {Color.BOLD}{stats['pushes']}{Color.RESET}")
+    print(f"{Color.MAGENTA}Natural Blackjack     : {Color.BOLD}{stats['blackjacks']}{Color.RESET}")
+    print(f"{Color.CYAN}Win Rate              : {Color.BOLD}{win_rate:.1f}%{Color.RESET}")
+    print("-" * 45)
+    print(f"{Color.YELLOW}Chip Tertinggi (Peak) : {Color.BOLD}${stats['peak_chips']}{Color.RESET}")
+    print(f"{Color.YELLOW}Sisa Chip Akhir       : {Color.BOLD}${final_chips}{Color.RESET}")
+    
+    if net_profit > 0:
+        print(f"{Color.GREEN}Keuntungan Bersih     : {Color.BOLD}+${net_profit}{Color.RESET}")
+    elif net_profit < 0:
+        print(f"{Color.RED}Kerugian Bersih       : {Color.BOLD}-${abs(net_profit)}{Color.RESET}")
+    else:
+        print(f"{Color.WHITE}Keuntungan Bersih     : {Color.BOLD}$0 (Impas){Color.RESET}")
+    print(Color.CYAN + "=" * 45 + Color.RESET)
 
 def main():
     print(Color.GREEN + "=" * 45 + Color.RESET)
     print(f"{Color.BOLD}{Color.YELLOW}       🃏 WELCOME TO BLACKJACK CLI 🃏       {Color.RESET}")
     print(Color.GREEN + "=" * 45 + Color.RESET)
 
-    chips = 100
+    initial_chips = 100
+    chips = initial_chips
     deck = Deck(num_decks=6)
 
+    # Inisialisasi pelacakan statistik sesi
+    stats = {
+        "rounds": 0,
+        "wins": 0,
+        "losses": 0,
+        "pushes": 0,
+        "blackjacks": 0,
+        "peak_chips": initial_chips
+    }
+
     while chips > 0:
-        chips = play_round(chips, deck)
+        chips = play_round(chips, deck, stats)
+
+        # Update saldo tertinggi jika chip saat ini melampaui rekor sebelumnya
+        if chips > stats["peak_chips"]:
+            stats["peak_chips"] = chips
 
         if chips <= 0:
             print("\n" + Color.RED + "x" * 45 + Color.RESET)
@@ -292,8 +345,11 @@ def main():
 
         play_again = input(f"\n{Color.YELLOW}Main ronde berikutnya? ([y]/n): {Color.RESET}").strip().lower()
         if play_again == 'n':
-            print(f"\n{Color.GREEN}Terima kasih sudah bermain! Sisa chip kamu: ${int(chips)}{Color.RESET}")
+            print(f"\n{Color.GREEN}Terima kasih sudah bermain!{Color.RESET}")
             break
+
+    # Tampilkan rekap statistik saat sesi berakhir
+    display_stats(stats, chips, initial_chips)
 
 if __name__ == "__main__":
     main()
