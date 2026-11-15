@@ -146,7 +146,6 @@ def play_round(chips, deck, stats):
     print(f"{Color.YELLOW}{Color.BOLD} 💰 Total Chip: {format_money(chips)}{Color.RESET} | {Color.WHITE}🎴 Sisa Kartu: {deck.remaining_cards()} | Ronde #{stats['rounds']}{Color.RESET}")
     print(Color.GREEN + "=" * 45 + Color.RESET)
 
-    # Input taruhan mendukung angka bulat maupun desimal (misal saat All-In sisa sen)
     while True:
         try:
             bet_input = float(input(f"{Color.YELLOW}Masukkan jumlah taruhan (1 - {format_money(chips)[1:]}): ${Color.RESET}"))
@@ -196,7 +195,7 @@ def play_round(chips, deck, stats):
             stats["pushes"] += 1
             stats["blackjacks"] += 1
         elif player_natural:
-            payout = round(bet * 1.5, 2)  # Payout 3:2 presisi (misal bet $5 -> untung $7.50)
+            payout = round(bet * 1.5, 2)
             total_return = round(bet + payout, 2)
             print(f"{Color.MAGENTA}{Color.BOLD}★ NATURAL BLACKJACK! KAMU MENANG (PAYOUT 3:2)! ★{Color.RESET}")
             print(f"{Color.GREEN}Keuntungan: {format_money(payout)} (Total didapat: {format_money(total_return)}){Color.RESET}")
@@ -219,11 +218,11 @@ def play_round(chips, deck, stats):
 
     player_hands = []
 
-    # --- FITUR SPLIT ---
-    can_split = (player_hand.cards[0].get_value() == player_hand.cards[1].get_value()) and (chips >= bet)
+    # --- FITUR SPLIT (Berdasarkan Peringkat / Rank yang Sama Persis) ---
+    can_split = (player_hand.cards[0].rank == player_hand.cards[1].rank) and (chips >= bet)
 
     if can_split:
-        do_split = input(f"\n{Color.MAGENTA}Kartu kamu bernilai sama! Lakukan SPLIT? (y/n): {Color.RESET}").strip().lower()
+        do_split = input(f"\n{Color.MAGENTA}Kartu kamu kembar! Lakukan SPLIT? (y/n): {Color.RESET}").strip().lower()
         if do_split == 'y':
             chips = round(chips - bet, 2)
             print(f"{Color.MAGENTA}-> Kamu memilih SPLIT! Menambah taruhan {format_money(bet)} untuk tangan kedua.{Color.RESET}")
