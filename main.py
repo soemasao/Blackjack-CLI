@@ -1,4 +1,5 @@
 import random
+import time
 
 # Definisi Kode Warna ANSI untuk Terminal
 class Color:
@@ -12,7 +13,6 @@ class Color:
     CYAN = '\033[96m'
     WHITE = '\033[97m'
 
-# Helper untuk memformat tampilan uang (tampilkan .50 jika ada sen, bulat jika .00)
 def format_money(amount):
     if amount == int(amount):
         return f"${int(amount)}"
@@ -23,10 +23,30 @@ class Card:
         self.suit = suit
         self.rank = rank
 
-    def display_card(self, owner="player"):
+    # Mengembalikan 5 baris string ASCII art untuk 1 kartu
+    def get_art_lines(self, owner="player", hidden=False):
+        border = Color.YELLOW if owner == "dealer" else Color.CYAN
+        
+        if hidden:
+            return [
+                f"{border}┌───────┐{Color.RESET}",
+                f"{border}│ ░░░░░ │{Color.RESET}",
+                f"{border}│ ░░░░░ │{Color.RESET}",
+                f"{border}│ ░░░░░ │{Color.RESET}",
+                f"{border}└───────┘{Color.RESET}"
+            ]
+
         suit_color = Color.RED if self.suit in ['♥', '♦'] else Color.WHITE
-        border_color = Color.YELLOW if owner == "dealer" else Color.CYAN
-        return f"{border_color}[{suit_color}{self.suit} {self.rank}{border_color}]{Color.RESET}"
+        top_rank = f"{self.rank:<2}"
+        bot_rank = f"{self.rank:>2}"
+
+        return [
+            f"{border}┌───────┐{Color.RESET}",
+            f"{border}│ {suit_color}{top_rank}    {border}│{Color.RESET}",
+            f"{border}│   {suit_color}{self.suit}   {border}│{Color.RESET}",
+            f"{border}│    {suit_color}{bot_rank} {border}│{Color.RESET}",
+            f"{border}└───────┘{Color.RESET}"
+        ]
 
     def get_value(self):
         if self.rank in ['J', 'Q', 'K']:
@@ -75,11 +95,21 @@ class Hand:
     def is_natural_blackjack(self):
         return len(self.cards) == 2 and self.get_value() == 21
 
+    # Menggabungkan semua kartu di tangan secara horizontal (berdampingan)
     def display(self, hide_first_card=False, owner="player"):
-        if hide_first_card:
-            hidden_symbol = f"{Color.YELLOW}[❓]{Color.RESET}"
-            return f"{hidden_symbol} " + " ".join(card.display_card(owner) for card in self.cards[1:])
-        return " ".join(card.display_card(owner) for card in self.cards)
+        if not self.cards:
+            return ""
+        
+        card_arts = []
+        for idx, card in enumerate(self.cards):
+            is_hidden = (idx == 0 and hide_first_card)
+            card_arts.append(card.get_art_lines(owner=owner, hidden=is_hidden))
+        
+        lines = []
+        for row in range(5):
+            lines.append(" ".join(art[row] for art in card_arts))
+            
+        return "\n".join(lines)
 
 def play_hand(hand, deck, bet, chips, hand_label="", is_split_ace=False):
     player_busted = False
@@ -87,7 +117,8 @@ def play_hand(hand, deck, bet, chips, hand_label="", is_split_ace=False):
     label_str = f" ({hand_label})" if hand_label else ""
 
     if is_split_ace:
-        print(f"\n{Color.CYAN}{Color.BOLD}Kartu Kamu{label_str} : {hand.display(owner='player')}  {Color.WHITE}(Total: {hand.get_value()}){Color.RESET}")
+        print(f"\n{Color.CYAN}{Color.BOLD}Kartu Kamu{label_str} {Color.WHITE}(Total: {hand.get_value()}):{Color.RESET}")
+        print(hand.display(owner='player'))
         print(f"{Color.YELLOW}⚠️ Split Ace: Hanya diperbolehkan 1 kartu tambahan per tangan.{Color.RESET}")
         if hand.get_value() > 21:
             print(f"{Color.RED}{Color.BOLD}💥 BUST pada {hand_label if hand_label else 'tangan kamu'}!{Color.RESET}")
@@ -95,7 +126,8 @@ def play_hand(hand, deck, bet, chips, hand_label="", is_split_ace=False):
         return hand, current_bet, chips, player_busted
 
     while True:
-        print(f"\n{Color.CYAN}{Color.BOLD}Kartu Kamu{label_str} : {hand.display(owner='player')}  {Color.WHITE}(Total: {hand.get_value()}){Color.RESET}")
+        print(f"\n{Color.CYAN}{Color.BOLD}Kartu Kamu{label_str} {Color.WHITE}(Total: {hand.get_value()}):{Color.RESET}")
+        print(hand.display(owner='player'))
 
         if hand.get_value() == 21:
             print(f"{Color.MAGENTA}{Color.BOLD}★ Total kamu 21 pada {hand_label if hand_label else 'tangan kamu'}! ★{Color.RESET}")
@@ -125,7 +157,8 @@ def play_hand(hand, deck, bet, chips, hand_label="", is_split_ace=False):
             current_bet = round(current_bet * 2, 2)
             print(f"{Color.MAGENTA}-> Kamu memilih DOUBLE DOWN! Taruhan naik menjadi {format_money(current_bet)}.{Color.RESET}")
             hand.add_card(deck.deal_card())
-            print(f"{Color.CYAN}{Color.BOLD}Kartu Kamu{label_str} : {hand.display(owner='player')}  {Color.WHITE}(Total: {hand.get_value()}){Color.RESET}")
+            print(f"\n{Color.CYAN}{Color.BOLD}Kartu Kamu{label_str} {Color.WHITE}(Total: {hand.get_value()}):{Color.RESET}")
+            print(hand.display(owner='player'))
             
             if hand.get_value() > 21:
                 print(f"{Color.RED}{Color.BOLD}💥 BUST pada {hand_label if hand_label else 'tangan kamu'}!{Color.RESET}")
@@ -165,17 +198,29 @@ def play_round(chips, deck, stats):
         player_hand.add_card(deck.deal_card())
         dealer_hand.add_card(deck.deal_card())
 
-    print(f"\n{Color.YELLOW}{Color.BOLD}Kartu Dealer : {dealer_hand.display(hide_first_card=True, owner='dealer')}{Color.RESET}")
-    print(f"{Color.CYAN}{Color.BOLD}Kartu Kamu   : {player_hand.display(owner='player')}  {Color.WHITE}(Total: {player_hand.get_value()}){Color.RESET}")
+    print(f"\n{Color.YELLOW}{Color.BOLD}Kartu Dealer :{Color.RESET}")
+    print(dealer_hand.display(hide_first_card=True, owner='dealer'))
 
     player_natural = player_hand.is_natural_blackjack()
     dealer_natural = dealer_hand.is_natural_blackjack()
-
-    # --- FITUR INSURANCE (Presisi Desimal) ---
-    insurance_bet = 0.0
     dealer_upcard = dealer_hand.cards[1]
     max_insurance = round(bet / 2, 2)
-    
+    can_split = (player_hand.cards[0].rank == player_hand.cards[1].rank) and (chips >= bet)
+
+    # Tampilkan kartu pemain lebih awal HANYA jika ada keputusan awal (Blackjack / Insurance / Split)
+    need_early_display = (
+        player_natural
+        or dealer_natural
+        or (dealer_upcard.rank == 'A' and chips >= max_insurance)
+        or can_split
+    )
+
+    if need_early_display:
+        print(f"\n{Color.CYAN}{Color.BOLD}Kartu Kamu {Color.WHITE}(Total: {player_hand.get_value()}):{Color.RESET}")
+        print(player_hand.display(owner='player'))
+
+    # --- FITUR INSURANCE ---
+    insurance_bet = 0.0
     if dealer_upcard.rank == 'A' and chips >= max_insurance and not player_natural:
         print(f"\n{Color.YELLOW}⚠️ Dealer menunjukkan kartu ACE!{Color.RESET}")
         take_insurance = input(f"Beli Insurance senilai {format_money(max_insurance)}? (y/n): ").strip().lower()
@@ -184,10 +229,20 @@ def play_round(chips, deck, stats):
             chips = round(chips - insurance_bet, 2)
             print(f"{Color.CYAN}-> Insurance dipasang sebesar {format_money(insurance_bet)}.{Color.RESET}")
 
+    # --- FITUR DEALER PEEK ---
+    if dealer_upcard.get_value() in [10, 11]:
+        print(f"\n{Color.YELLOW}👀 Dealer mengintip kartu tertutup (Hole Card)...{Color.RESET}")
+        time.sleep(1.2)
+        if not dealer_natural:
+            print(f"{Color.GREEN}✓ Dealer tidak memiliki Blackjack. Permainan berlanjut!{Color.RESET}")
+            if insurance_bet > 0:
+                print(f"{Color.YELLOW}-> Uang Insurance sebesar {format_money(insurance_bet)} hangus.{Color.RESET}")
+
     # Penanganan Kasus Natural Blackjack
     if player_natural or dealer_natural:
         print("\n" + Color.GREEN + "=" * 45 + Color.RESET)
-        print(f"{Color.YELLOW}Dealer membuka kartu: {dealer_hand.display(owner='dealer')}{Color.RESET}")
+        print(f"{Color.YELLOW}{Color.BOLD}Dealer membuka kartu:{Color.RESET}")
+        print(dealer_hand.display(owner='dealer'))
 
         if player_natural and dealer_natural:
             print(f"{Color.YELLOW}{Color.BOLD}KEDUA PIHAK NATURAL BLACKJACK! Hasil Seri (Push). Taruhan dikembalikan.{Color.RESET}")
@@ -203,7 +258,7 @@ def play_round(chips, deck, stats):
             stats["wins"] += 1
             stats["blackjacks"] += 1
         else:
-            print(f"{Color.RED}{Color.BOLD}DEALER DAPAT NATURAL BLACKJACK! KAMU KALAH!{Color.RESET}")
+            print(f"{Color.RED}{Color.BOLD}💥 DEALER DAPAT NATURAL BLACKJACK! KAMU KALAH!{Color.RESET}")
             stats["losses"] += 1
             if insurance_bet > 0:
                 ins_profit = round(insurance_bet * 2, 2)
@@ -213,14 +268,9 @@ def play_round(chips, deck, stats):
         print(Color.GREEN + "=" * 45 + Color.RESET)
         return chips
 
-    if insurance_bet > 0:
-        print(f"{Color.YELLOW}-> Dealer TIDAK Blackjack. Uang Insurance hangus.{Color.RESET}")
-
     player_hands = []
 
-    # --- FITUR SPLIT (Berdasarkan Peringkat / Rank yang Sama Persis) ---
-    can_split = (player_hand.cards[0].rank == player_hand.cards[1].rank) and (chips >= bet)
-
+    # --- FITUR SPLIT ---
     if can_split:
         do_split = input(f"\n{Color.MAGENTA}Kartu kamu kembar! Lakukan SPLIT? (y/n): {Color.RESET}").strip().lower()
         if do_split == 'y':
@@ -255,12 +305,16 @@ def play_round(chips, deck, stats):
     if not all_busted:
         print("\n" + Color.YELLOW + "-" * 45 + Color.RESET)
         print(f"{Color.YELLOW}{Color.BOLD}Giliran Dealer...{Color.RESET}")
-        print(f"{Color.YELLOW}Kartu Dealer : {dealer_hand.display(owner='dealer')}  {Color.WHITE}(Total: {dealer_hand.get_value()}){Color.RESET}")
+        time.sleep(0.8)
+        print(f"{Color.YELLOW}Kartu Dealer {Color.WHITE}(Total: {dealer_hand.get_value()}):{Color.RESET}")
+        print(dealer_hand.display(owner='dealer'))
 
         while dealer_hand.get_value() < 17:
-            print(f"{Color.YELLOW}Dealer memilih HIT...{Color.RESET}")
+            time.sleep(0.8)
+            print(f"\n{Color.YELLOW}Dealer memilih HIT...{Color.RESET}")
             dealer_hand.add_card(deck.deal_card())
-            print(f"{Color.YELLOW}Kartu Dealer : {dealer_hand.display(owner='dealer')}  {Color.WHITE}(Total: {dealer_hand.get_value()}){Color.RESET}")
+            print(f"{Color.YELLOW}Kartu Dealer {Color.WHITE}(Total: {dealer_hand.get_value()}):{Color.RESET}")
+            print(dealer_hand.display(owner='dealer'))
 
     dealer_total = dealer_hand.get_value()
 
